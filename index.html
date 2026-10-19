@@ -152,6 +152,16 @@ table.xlg{border-collapse:separate;border-spacing:0;min-width:1900px;width:100%;
 .xlt td,.xlt th{border-right:1px solid var(--line)}
 footer{text-align:center;color:var(--mute);font-size:12px;padding:26px 16px 30px}
 footer b{color:var(--brand)}
+
+.tbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sbtn{border:0;border-radius:10px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;color:#fff;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+.sbtn small{font-weight:500;font-size:11px}.sbtn.ok{background:#16a34a}.sbtn.no{background:#dc2626}
+.printonly{display:none}
+@media print{@page{size:A4 landscape;margin:10mm}
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ body{background:#fff}header,.topbar,.filters,#syncBadge,.toast,#bPdf{display:none!important}
+ .printonly{display:block;font-weight:700;margin-bottom:8px}.card,tr{break-inside:avoid}
+ .tw{overflow:visible!important;max-height:none!important}table{font-size:9px}}
 @media(max-width:820px){#auth{grid-template-columns:1fr}.hero{display:none}.authcard .mini{display:block}nav{justify-content:flex-start}}
 </style>
 </head>
@@ -216,27 +226,22 @@ footer b{color:var(--brand)}
 
 <!-- DASHBOARD -->
 <section id="dash" class="sec">
+  <div class="printonly" id="printInfo"></div>
   <div class="card filters">
     <label>📅 Month<select id="fM"></select></label>
     <label>🗓️ Day<select id="fD"></select></label>
     <label>👤 Sales person<select id="fP"></select></label>
     <button class="btn ghost" id="fReset">↺ Reset filters</button>
+    <button class="btn" id="bPdf" type="button">⬇ Download PDF report</button>
     <div style="flex:1"></div>
     <div style="text-align:right"><span class="live">Live</span><div class="note" id="status" style="margin-top:4px"></div></div>
   </div>
+  <div class="card" id="todayBox"><b>📌 Today's data entry status</b> <span class="note" id="todayDate"></span><div class="tbtns" id="todayBtns"></div></div>
   <div class="note">Order counts, win rates and follow-ups are counted per unique Order Ref No.; activities are counted per row.</div>
 
   <h2>Key KPIs <small>— month, day &amp; sales person filters apply</small></h2>
   <div class="grid g4" id="kpi1"></div>
   <div class="grid g4" id="kpi2" style="margin-top:12px"></div>
-
-  <h2>Charts</h2>
-  <div class="charts">
-    <div class="card"><h3>Value by sales person (KSH)</h3><div id="chBar"></div></div>
-    <div class="card"><h3>New vs old customer enquiries</h3><div id="chNew"></div></div>
-    <div class="card"><h3>Activity type mix</h3><div id="chAct"></div></div>
-    <div class="card"><h3>Stage-wise value (KSH)</h3><div id="chStage"></div></div>
-  </div>
 
   <h2>Top 5 quotations &amp; enquiries</h2>
   <div class="grid g2">
@@ -261,6 +266,14 @@ footer b{color:var(--brand)}
 
   <h2>Follow-up register by order ref no.</h2>
   <div class="card tw" id="tFu"></div>
+
+  <h2>Charts</h2>
+  <div class="charts">
+    <div class="card"><h3>Value by sales person (KSH)</h3><div id="chBar"></div></div>
+    <div class="card"><h3>New vs old customer enquiries</h3><div id="chNew"></div></div>
+    <div class="card"><h3>Activity type mix</h3><div id="chAct"></div></div>
+    <div class="card"><h3>Stage-wise value (KSH)</h3><div id="chStage"></div></div>
+  </div>
 </section>
 
 <!-- ENTRY SHEETS -->
@@ -419,7 +432,7 @@ const K_ROWS="salesTracker.rows.v2", K_USERS="salesTracker.users.v2", K_SESS="sa
    ===================================================================== */
 const $=id=>document.getElementById(id);
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
-const inr=n=>Math.round(n).toLocaleString('en-IN');
+const inr=n=>Math.round(n).toLocaleString('en-US');
 const pct=n=>(n*100).toFixed(1)+'%';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dmy=s=>s?s.split('-').reverse().join('-'):'';
@@ -746,16 +759,25 @@ function hbars(el,items){
    DASHBOARD (admin + director)
    ===================================================================== */
 const filt=()=>({m:$('fM').value,d:$('fD').value,p:$('fP').value});
-const KICO=[[/new cust/i,'🆕'],[/old cust/i,'🤝'],[/win/i,'🏆'],[/complaint/i,'⚠️'],[/opportunity/i,'🔎'],[/quotation/i,'📝'],[/won/i,'✅'],[/lost/i,'❌'],[/call/i,'📞'],[/email/i,'✉️'],[/whatsapp/i,'💬'],[/visit/i,'🚗'],[/total follow/i,'🔁'],[/followed up/i,'🔗'],[/avg/i,'📊'],[/still open/i,'⏳'],[/my entries/i,'🗂️']];
+const KICO=[[/total act/i,'🧮'],[/total value/i,'💰'],[/new cust/i,'🆕'],[/old cust/i,'🤝'],[/win/i,'🏆'],[/complaint/i,'⚠️'],[/opportunity/i,'🔎'],[/quotation/i,'📝'],[/won/i,'✅'],[/lost/i,'❌'],[/call/i,'📞'],[/email/i,'✉️'],[/whatsapp/i,'💬'],[/visit/i,'🚗'],[/total follow/i,'🔁'],[/followed up/i,'🔗'],[/avg/i,'📊'],[/still open/i,'⏳'],[/my entries/i,'🗂️']];
 const kico=l=>(KICO.find(k=>k[0].test(l))||[0,'📌'])[1];
 const kpi=(l,v,s,color)=>`<div class="card kpi"><div class="ico">${kico(l)}</div><div class="l">${l}</div><div class="v" ${color?`style="color:${color}"`:''}>${v}</div><div class="s">${s||''}</div></div>`;
+function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
+function renderToday(){
+  const iso=todayISO(),sp=users.filter(u=>u.role==='salesperson'&&u.active);
+  const done=sp.filter(u=>rows.some(r=>r.person===u.name&&r.date===iso)).length;
+  $('todayDate').textContent=`${dmy(iso)} • ${done} of ${sp.length} filled today • click a name to filter the dashboard to that person for today`;
+  $('todayBtns').innerHTML=sp.length?sp.map(u=>{const n=rows.filter(r=>r.person===u.name&&r.date===iso).length;
+    return `<button type="button" class="sbtn ${n?'ok':'no'}" data-p="${esc(u.name)}">${esc(u.name)}<small>${n?'✔ '+n+(n===1?' entry':' entries')+' today':'✖ Not filled today'}</small></button>`}).join(''):'<span class="note">No active sales persons yet.</span>';
+}
 function renderDash(){
   if(!(isAdmin()||isDir()))return;
   const f=filt(),C=compute(f),L=C.L;
+  renderToday();
   $('status').textContent=`Entries: ${rows.length} • Order refs: ${uniqRefs(rows).size} • Latest: ${rows.length?dmy(rows.map(r=>r.date).sort().pop()):'–'}`;
   $('kpi1').innerHTML=
-   kpi('New customer enquiries',C.newC.refs,`${C.newC.acts} activities • counted once per Order Ref No.`)+
-   kpi('Old customer enquiries',C.oldC.refs,`${C.oldC.acts} activities • counted once per Order Ref No.`)+
+   kpi('Total activities',inr(L.length),`Formula: ${TYPES.map(t=>t+' '+L.filter(r=>(r.type||'')===t).length).join(' + ')}${L.some(r=>!TYPES.includes(r.type))?' + Other '+L.filter(r=>!TYPES.includes(r.type)).length:''} = ${L.length}`)+
+   kpi('Total value (KSH)',inr(sum(L)),`Formula: Sum of Value (KSH) of all ${L.length} entries in the selected filters`)+
    kpi('Win % (Won ÷ Quote + Won + Loss)',pct(C.win),`Won ${inr(C.wV)} ÷ (Quote ${inr(C.qV)} + Won ${inr(C.wV)} + Loss ${inr(C.lV)})`,'var(--brand2)')+
    kpi('Customer complaints',C.comp.total,`Short ${C.comp.short} • Wrong ${C.comp.wrong} • Quality ${C.comp.quality} • Late ${C.comp.late}`,C.comp.total?'var(--bad)':'');
   $('kpi2').innerHTML=
@@ -884,6 +906,12 @@ $('tEntries').onclick=e=>{const b=e.target.closest('[data-del]');if(!b)return;co
   if(confirm('Delete this entry?')){rows.splice(+b.dataset.del,1);saveRows();renderAll()}};
 ['tSearch','tP'].forEach(i=>$(i).oninput=renderEntries);
 ['fM','fD','fP'].forEach(i=>$(i).onchange=renderDash);
+$('todayBtns').addEventListener('click',e=>{const b=e.target.closest('.sbtn');if(!b)return;const t=new Date();
+  $('fM').value=MONTHS[t.getMonth()];$('fD').value=String(t.getDate());$('fP').value=b.dataset.p;renderDash()});
+$('bPdf').onclick=()=>{const t=new Date(),f=filt(),old=document.title;
+  $('printInfo').textContent=`Sales Dashboard Report • Generated ${dmy(todayISO())} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} • Month: ${f.m} • Day: ${f.d} • Sales person: ${f.p}`;
+  document.title='Sales-Dashboard-Report-'+todayISO();
+  window.addEventListener('afterprint',()=>{document.title=old},{once:true});window.print()};
 $('fReset').onclick=()=>{$('fM').selectedIndex=0;$('fD').selectedIndex=0;$('fP').selectedIndex=0;renderDash()};
 
 /* ---------- CSV ---------- */
