@@ -157,6 +157,9 @@ footer b{color:var(--brand)}
 .sbtn{border:0;border-radius:10px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;color:#fff;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .sbtn small{font-weight:500;font-size:11px}.sbtn.ok{background:#16a34a}.sbtn.no{background:#dc2626}
 .printonly{display:none}
+tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important;text-transform:none;z-index:3;border-bottom:1px solid var(--line)}
+.cfi{width:100%;box-sizing:border-box;font:inherit;font-size:11px;font-weight:400;color:#111;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:#fff}
+.cfx{border:0;background:transparent;cursor:pointer;color:#a1203a;font-weight:700}
 @media print{@page{size:A4 landscape;margin:10mm}
  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
  body{background:#fff}header,.topbar,.filters,#syncBadge,.toast,#bPdf{display:none!important}
@@ -701,6 +704,7 @@ function go(id){
    ===================================================================== */
 const refOk=r=>r.ref!==undefined&&String(r.ref).trim()!==''&&String(r.ref).trim()!=='-';
 const sum=a=>a.reduce((s,r)=>s+num(r.value),0);
+const VSTAGES=['Opportunity','Quotation','Won','Loss'],sumV=a=>sum(a.filter(r=>VSTAGES.includes(r.stage)));   // Total value = Enquiries + Quotation + Won + Lost (Follow-up excluded)
 const uniqRefs=l=>new Set(l.filter(refOk).map(r=>String(r.ref)));
 function latestByRef(list,stage){const m=new Map();list.filter(r=>r.stage===stage&&refOk(r)).forEach(r=>m.set(String(r.ref),r));return [...m.values()]}
 function inView(r,f,usePerson=true){return (f.m==='All Months'||r.month===f.m)&&(f.d==='All Days'||String(r.day)===f.d)&&(!usePerson||f.p==='All Sales Persons'||r.person===f.p)}
@@ -718,7 +722,7 @@ function compute(f){
   const comp=s=>L.filter(r=>r.stage==='Customer complaint'&&(r.remark||'').toLowerCase().includes(s)).length;
   return{L,quotes,won,lost,opp,qV,wV,lV,newC:cat('New'),oldC:cat('Old'),fu,fuRows,
     comp:{short:comp('short'),wrong:comp('wrong'),quality:comp('quality'),late:comp('late'),total:L.filter(r=>r.stage==='Customer complaint').length},
-    win:(qV+wV+lV)?wV/(qV+wV+lV):0};
+    win:qV?wV/qV:0};
 }
 
 /* =====================================================================
@@ -777,8 +781,9 @@ function renderDash(){
   $('status').textContent=`Entries: ${rows.length} • Order refs: ${uniqRefs(rows).size} • Latest: ${rows.length?dmy(rows.map(r=>r.date).sort().pop()):'–'}`;
   $('kpi1').innerHTML=
    kpi('Total activities',inr(L.length),`Formula: ${TYPES.map(t=>t+' '+L.filter(r=>(r.type||'')===t).length).join(' + ')}${L.some(r=>!TYPES.includes(r.type))?' + Other '+L.filter(r=>!TYPES.includes(r.type)).length:''} = ${L.length}`)+
-   kpi('Total value (KSH)',inr(sum(L)),`Formula: Sum of Value (KSH) of all ${L.length} entries in the selected filters`)+
-   kpi('Win % (Won ÷ Quote + Won + Loss)',pct(C.win),`Won ${inr(C.wV)} ÷ (Quote ${inr(C.qV)} + Won ${inr(C.wV)} + Loss ${inr(C.lV)})`,'var(--brand2)')+
+   (()=>{const sv=s=>sum(L.filter(r=>r.stage===s)),e=sv('Opportunity'),q=sv('Quotation'),w=sv('Won'),l=sv('Loss');
+     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Enquiries ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (Follow-up excluded)`)})()+
+   kpi('Win % (Won value ÷ Quotation value)',pct(C.win),`Formula: Won ${inr(C.wV)} ÷ Quotation ${inr(C.qV)}`,'var(--brand2)')+
    kpi('Customer complaints',C.comp.total,`Short ${C.comp.short} • Wrong ${C.comp.wrong} • Quality ${C.comp.quality} • Late ${C.comp.late}`,C.comp.total?'var(--bad)':'');
   $('kpi2').innerHTML=
    kpi('Enquiries – opportunity (KSH)',inr(sum(C.opp)),`${C.opp.length} ${C.opp.length===1?'enquiry':'enquiries'} (order refs)`)+
@@ -802,7 +807,7 @@ function renderDash(){
   const quoted=quotedSet();
   const prow=p=>{const rr=rows.filter(r=>r.person===p&&inView(r,f,false));
     const q=latestByRef(rr,'Quotation'),w=latestByRef(rr,'Won'),l=latestByRef(rr,'Loss'),o=latestByRef(rr,'Opportunity');
-    return{person:p,acts:rr.length,enq:o.length,q:q.length,w:w.length,l:l.length,fu:rr.filter(r=>r.stage==='Follow up'&&refOk(r)&&quoted.has(String(r.ref))).length,tv:sum(rr),wv:sum(w),lv:sum(l),
+    return{person:p,acts:rr.length,enq:o.length,q:q.length,w:w.length,l:l.length,fu:rr.filter(r=>r.stage==='Follow up'&&refOk(r)&&quoted.has(String(r.ref))).length,tv:sumV(rr),wv:sum(w),lv:sum(l),
       wq:q.length?w.length/q.length:null,we:o.length?w.length/o.length:null,nw:rr.filter(r=>r.cat==='New').length,od:rr.filter(r=>r.cat==='Old').length}};
   const ps=personList().map(prow).filter(r=>r.acts>0);
   const T=ps.reduce((t,r)=>{['acts','enq','q','w','l','fu','tv','wv','lv','nw','od'].forEach(k=>t[k]=(t[k]||0)+r[k]);return t},{});
@@ -810,11 +815,11 @@ function renderDash(){
   const pc=v=>v==null?'–':pct(v);
   $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'Win % vs Quote',n:1,f:r=>pc(r.wq)},{h:'Win % vs Enquiry',n:1,f:r=>pc(r.we)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person});
 
-  const totV=sum(L),totA=L.length;
+  const totV=sumV(L),totA=L.length;
   const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:sum(x)}});
   const stT={s:'TOTAL',a:st.reduce((t,r)=>t+r.a,0),r:uniqRefs(L).size,v:totV,_tot:1};
-  $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...st,stT]);
-  const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sum(x)}});
+  $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>(r._tot||VSTAGES.includes(r.s))?(totV?pct(r.v/totV):'0.0%'):'–'}],[...st,stT])+'<div class="note" style="margin-top:6px">Total value = Opportunity + Quotation + Won + Loss. Follow up and Customer complaint values are shown for information only and are not counted.</div>';
+  const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sumV(x)}});
   const ctT={c:'TOTAL',a:ct.reduce((t,r)=>t+r.a,0),r:uniqRefs(L.filter(r=>CATS.includes(r.cat))).size,v:ct.reduce((t,r)=>t+r.v,0),_tot:1};
   $('tCat').innerHTML=table([{h:'Category',k:'c'},{h:'Activities',n:1,k:'a'},{h:'Enquiries (refs)',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...ct,ctT]);
 
@@ -1078,6 +1083,29 @@ $('xlGrid').addEventListener('keydown',e=>{
     if(t&&t.tagName!=='TD'){e.preventDefault();t.focus();t.select&&t.select()}}});
 $('bCsv2').onclick=()=>$('bCsv').click();
 
+const CF={};
+function cfTable(el){return el.tagName==='TABLE'?el:el.querySelector('table')}
+function addColFilters(el,key){
+  const t=cfTable(el);if(!t||!t.tHead||!t.tBodies[0])return;
+  const st=CF[key]||(CF[key]={}),hr=t.tHead.rows[0],tr=document.createElement('tr');tr.className='cfr';
+  [...hr.cells].forEach((th,i)=>{const h=th.textContent.trim().toLowerCase(),c=document.createElement('th');
+    if(i===0&&h==='sr'){c.className='rn';c.innerHTML='<button type="button" class="cfx" title="Clear all column filters">✖</button>'}
+    else if(h&&h!=='action'){c.innerHTML=`<input class="cfi" data-c="${i}" placeholder="filter" value="${esc(st[i]||'')}">`}
+    c.style.top=hr.offsetHeight+'px';tr.appendChild(c)});
+  t.tHead.appendChild(tr);
+  const apply=()=>{const f=Object.entries(st).filter(([,v])=>v);
+    [...t.tBodies[0].rows].forEach(r=>{if(r.classList.contains('newrow')||r.classList.contains('tot'))return;
+      r.style.display=f.every(([i,v])=>{const td=r.cells[i];if(!td)return true;const x=td.querySelector('input,select');return String(x?x.value:td.textContent).toLowerCase().includes(v.toLowerCase())})?'':'none'})};
+  tr.addEventListener('input',e=>{if(e.target.classList.contains('cfi')){st[e.target.dataset.c]=e.target.value.trim();apply()}});
+  tr.addEventListener('click',e=>{if(e.target.closest('.cfx')){Object.keys(st).forEach(k=>delete st[k]);tr.querySelectorAll('.cfi').forEach(i=>i.value='');apply()}});
+  apply();
+}
+function cfKeep(fn,el,key){const a=document.activeElement,k=a&&a.classList&&a.classList.contains('cfi')&&el.contains(a)?[a.dataset.c,a.selectionStart]:null;
+  fn();addColFilters(el,key);
+  if(k){const n=el.querySelector(`.cfi[data-c="${k[0]}"]`);if(n){n.focus();try{n.setSelectionRange(k[1],k[1])}catch(e){}}}}
+const _rE=renderEntries,_rG=renderGrid;
+renderEntries=function(){cfKeep(_rE,$('tEntries'),'tEntries')};
+renderGrid=function(){cfKeep(_rG,$('xlGrid'),'xlGrid')};
 function renderAll(){if(!me)return;refreshEntryLists();renderDash();renderStatus();renderEntries();renderGrid();renderMySum();renderUsers()}
 /* cross-tab refresh is now handled by the cloud sync above */
 $('dlgPw').addEventListener('click',e=>{if(e.target===$('dlgPw'))$('dlgPw').close()});
