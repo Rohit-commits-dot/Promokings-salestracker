@@ -805,21 +805,25 @@ function renderDash(){
     kpi('Refs still open',openRefs,'Followed-up refs with no Won / Loss yet',openRefs?'var(--warn)':'');
 
   const quoted=quotedSet();
+  const Lall=rows.filter(r=>inView(r,f,false)),G={};VSTAGES.forEach(st=>G[st]=latestByRef(Lall,st));   // same one-latest-value-per-order-ref rows the KPI cards use
+  const gv=(p,st)=>sum(G[st].filter(r=>r.person===p));
   const prow=p=>{const rr=rows.filter(r=>r.person===p&&inView(r,f,false));
     const q=latestByRef(rr,'Quotation'),w=latestByRef(rr,'Won'),l=latestByRef(rr,'Loss'),o=latestByRef(rr,'Opportunity');
-    return{person:p,acts:rr.length,enq:o.length,q:q.length,w:w.length,l:l.length,fu:rr.filter(r=>r.stage==='Follow up'&&refOk(r)&&quoted.has(String(r.ref))).length,tv:sumV(rr),wv:sum(w),lv:sum(l),
+    return{person:p,acts:rr.length,enq:o.length,q:q.length,w:w.length,l:l.length,fu:rr.filter(r=>r.stage==='Follow up'&&refOk(r)&&quoted.has(String(r.ref))).length,tv:VSTAGES.reduce((t,st)=>t+gv(p,st),0),wv:gv(p,'Won'),lv:gv(p,'Loss'),
       wq:q.length?w.length/q.length:null,we:o.length?w.length/o.length:null,nw:rr.filter(r=>r.cat==='New').length,od:rr.filter(r=>r.cat==='Old').length}};
   const ps=personList().map(prow).filter(r=>r.acts>0);
   const T=ps.reduce((t,r)=>{['acts','enq','q','w','l','fu','tv','wv','lv','nw','od'].forEach(k=>t[k]=(t[k]||0)+r[k]);return t},{});
+  T.tv=VSTAGES.reduce((t,st)=>t+sum(G[st]),0);T.wv=sum(G.Won);T.lv=sum(G.Loss);
   T.person='TOTAL';T._tot=1;T.wq=T.q?T.w/T.q:null;T.we=T.enq?T.w/T.enq:null;
   const pc=v=>v==null?'–':pct(v);
-  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person});
+  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Enquiries + Quotation + Won + Lost) — same as the KPI cards when All Sales Persons is selected.</div>';
 
   const totV=sumV(L),totA=L.length;
   const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:VSTAGES.includes(s)?sum(latestByRef(x,s)):sum(x)}});
   const stT={s:'TOTAL',a:st.reduce((t,r)=>t+r.a,0),r:uniqRefs(L).size,v:totV,_tot:1};
   $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>(r._tot||VSTAGES.includes(r.s))?(totV?pct(r.v/totV):'0.0%'):'–'}],[...st,stT])+'<div class="note" style="margin-top:6px">Total value = Opportunity + Quotation + Won + Loss (latest value per order ref). Follow up and Customer complaint values are shown for information only and are not counted.</div>';
-  const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sumV(x)}});
+  const GL=VSTAGES.flatMap(st=>latestByRef(L,st));
+  const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sum(GL.filter(r=>r.cat===c))}});
   const ctT={c:'TOTAL',a:ct.reduce((t,r)=>t+r.a,0),r:uniqRefs(L.filter(r=>CATS.includes(r.cat))).size,v:ct.reduce((t,r)=>t+r.v,0),_tot:1};
   $('tCat').innerHTML=table([{h:'Category',k:'c'},{h:'Activities',n:1,k:'a'},{h:'Enquiries (refs)',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...ct,ctT]);
 
