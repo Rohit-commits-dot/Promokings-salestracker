@@ -704,7 +704,7 @@ function go(id){
    ===================================================================== */
 const refOk=r=>r.ref!==undefined&&String(r.ref).trim()!==''&&String(r.ref).trim()!=='-';
 const sum=a=>a.reduce((s,r)=>s+num(r.value),0);
-const VSTAGES=['Opportunity','Quotation','Won','Loss'],sumV=a=>sum(a.filter(r=>VSTAGES.includes(r.stage)));   // Total value = Enquiries + Quotation + Won + Lost (Follow-up excluded)
+const VSTAGES=['Opportunity','Quotation','Won','Loss'],sumV=a=>VSTAGES.reduce((t,st)=>t+sum(latestByRef(a,st)),0);   // Total value = Enquiries + Quotation + Won + Lost (Follow-up excluded)
 const uniqRefs=l=>new Set(l.filter(refOk).map(r=>String(r.ref)));
 function latestByRef(list,stage){const m=new Map();list.filter(r=>r.stage===stage&&refOk(r)).forEach(r=>m.set(String(r.ref),r));return [...m.values()]}
 function inView(r,f,usePerson=true){return (f.m==='All Months'||r.month===f.m)&&(f.d==='All Days'||String(r.day)===f.d)&&(!usePerson||f.p==='All Sales Persons'||r.person===f.p)}
@@ -781,8 +781,8 @@ function renderDash(){
   $('status').textContent=`Entries: ${rows.length} • Order refs: ${uniqRefs(rows).size} • Latest: ${rows.length?dmy(rows.map(r=>r.date).sort().pop()):'–'}`;
   $('kpi1').innerHTML=
    kpi('Total activities',inr(L.length),`Formula: ${TYPES.map(t=>t+' '+L.filter(r=>(r.type||'')===t).length).join(' + ')}${L.some(r=>!TYPES.includes(r.type))?' + Other '+L.filter(r=>!TYPES.includes(r.type)).length:''} = ${L.length}`)+
-   (()=>{const sv=s=>sum(L.filter(r=>r.stage===s)),e=sv('Opportunity'),q=sv('Quotation'),w=sv('Won'),l=sv('Loss');
-     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Enquiries ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (Follow-up excluded)`)})()+
+   (()=>{const sv=s=>sum(latestByRef(L,s)),e=sv('Opportunity'),q=sv('Quotation'),w=sv('Won'),l=sv('Loss');
+     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Enquiries ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (latest value per order ref • Follow-up excluded)`)})()+
    kpi('Win % (Won value ÷ Quotation value)',pct(C.win),`Formula: Won ${inr(C.wV)} ÷ Quotation ${inr(C.qV)}`,'var(--brand2)')+
    kpi('Customer complaints',C.comp.total,`Short ${C.comp.short} • Wrong ${C.comp.wrong} • Quality ${C.comp.quality} • Late ${C.comp.late}`,C.comp.total?'var(--bad)':'');
   $('kpi2').innerHTML=
@@ -813,12 +813,12 @@ function renderDash(){
   const T=ps.reduce((t,r)=>{['acts','enq','q','w','l','fu','tv','wv','lv','nw','od'].forEach(k=>t[k]=(t[k]||0)+r[k]);return t},{});
   T.person='TOTAL';T._tot=1;T.wq=T.q?T.w/T.q:null;T.we=T.enq?T.w/T.enq:null;
   const pc=v=>v==null?'–':pct(v);
-  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'Win % vs Quote',n:1,f:r=>pc(r.wq)},{h:'Win % vs Enquiry',n:1,f:r=>pc(r.we)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person});
+  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person});
 
   const totV=sumV(L),totA=L.length;
-  const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:sum(x)}});
+  const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:VSTAGES.includes(s)?sum(latestByRef(x,s)):sum(x)}});
   const stT={s:'TOTAL',a:st.reduce((t,r)=>t+r.a,0),r:uniqRefs(L).size,v:totV,_tot:1};
-  $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>(r._tot||VSTAGES.includes(r.s))?(totV?pct(r.v/totV):'0.0%'):'–'}],[...st,stT])+'<div class="note" style="margin-top:6px">Total value = Opportunity + Quotation + Won + Loss. Follow up and Customer complaint values are shown for information only and are not counted.</div>';
+  $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>(r._tot||VSTAGES.includes(r.s))?(totV?pct(r.v/totV):'0.0%'):'–'}],[...st,stT])+'<div class="note" style="margin-top:6px">Total value = Opportunity + Quotation + Won + Loss (latest value per order ref). Follow up and Customer complaint values are shown for information only and are not counted.</div>';
   const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sumV(x)}});
   const ctT={c:'TOTAL',a:ct.reduce((t,r)=>t+r.a,0),r:uniqRefs(L.filter(r=>CATS.includes(r.cat))).size,v:ct.reduce((t,r)=>t+r.v,0),_tot:1};
   $('tCat').innerHTML=table([{h:'Category',k:'c'},{h:'Activities',n:1,k:'a'},{h:'Enquiries (refs)',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...ct,ctT]);
