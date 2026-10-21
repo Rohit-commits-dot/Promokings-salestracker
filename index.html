@@ -231,6 +231,7 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
 <section id="dash" class="sec">
   <div class="printonly" id="printInfo"></div>
   <div class="card filters">
+    <label>📆 Year<select id="fY"></select></label>
     <label>📅 Month<select id="fM"></select></label>
     <label>🗓️ Day<select id="fD"></select></label>
     <label>👤 Sales person<select id="fP"></select></label>
@@ -255,7 +256,7 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
   <h2>Activity type <small>— count, share of activities and value</small></h2>
   <div class="grid g4" id="kpiAct"></div>
 
-  <h2>Follow-ups by order reference</h2>
+  <h2>Follow-ups, complaints &amp; customers</h2>
   <div class="grid g4" id="kpiFu"></div>
 
   <h2>Sales person-wise <small>— selected person highlighted</small></h2>
@@ -268,7 +269,7 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
   </div>
 
   <h2>Follow-up register by order ref no.</h2>
-  <div class="card tw" id="tFu"></div>
+  <div class="card tw" id="tFu" style="max-height:440px;overflow-y:auto"></div>
 
   <h2>Charts</h2>
   <div class="charts">
@@ -281,6 +282,10 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
 
 <!-- ENTRY SHEETS -->
 <section id="entry" class="sec">
+  <div class="card filters" id="myFilters" hidden style="margin-bottom:14px">
+    <label>📆 Year<select id="myY"></select></label><label>📅 Month<select id="myM"></select></label><label>🗓️ Day<select id="myD"></select></label>
+    <button class="btn ghost" id="myReset" type="button">↺ Reset filters</button><span class="note">Filters apply to the cards and to the sheet below.</span>
+  </div>
   <div id="mySum" class="grid g4" style="margin-bottom:14px" hidden></div>
   <div id="salesSheet" hidden>
     <h2>My entry sheet <small>— one row = one entry</small></h2>
@@ -291,8 +296,9 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
     </div>
   </div>
   <div id="adminEntry">
-  <h2 id="entryTitle">New activity entry</h2>
   <div class="banner" id="noSales" hidden>⚠️ No salesperson accounts exist yet. Ask the admin to create salesperson logins (Users tab) before entries can be added.</div>
+  <div id="oldForm" hidden>
+  <h2 id="entryTitle">New activity entry</h2>
   <form class="card form" id="f" autocomplete="off">
     <div class="grp"><i>1</i> Activity details</div>
     <label>Date <em>*</em><input type="date" id="eDate" required></label>
@@ -316,6 +322,7 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
       <span class="note"><em style="color:var(--brand);font-style:normal">*</em> required (value only for Opportunity, Quotation, Won, Loss). Month, day and follow-up no. are automatic.</span>
     </div>
   </form>
+  </div>
 
   <h2 id="sheetTitle">Entry sheets</h2>
   <div class="card">
@@ -330,14 +337,6 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
     <div class="tw" style="max-height:540px" id="tEntries"></div>
   </div>
   </div>
-</section>
-
-<!-- ORDER STATUS -->
-<section id="status" class="sec">
-  <h2>Order status – every order ref no., highest quotation first</h2>
-  <div class="note" id="osSummary"></div>
-  <div class="card tw" id="tStatus" style="margin-top:8px"></div>
-  <div class="note">All order refs from every sales person (not affected by the dashboard filters). Quotation value = latest quotation for the order. Follow-ups count only after a quotation.</div>
 </section>
 
 <!-- USERS (admin) -->
@@ -680,8 +679,8 @@ $('pwForm').onsubmit=e=>{
    APP SHELL / ROLE-BASED NAV
    ===================================================================== */
 const TABS={
-  admin:[['dash','📊 Dashboard'],['entry','✍️ Entry Sheets'],['status','📦 Order Status'],['users','👥 Users']],
-  director:[['dash','📊 Dashboard'],['entry','✍️ Entry Sheets'],['status','📦 Order Status']],
+  admin:[['dash','📊 Dashboard'],['entry','✍️ Entry Sheets'],['users','👥 Users']],
+  director:[['dash','📊 Dashboard'],['entry','✍️ Entry Sheets']],
   salesperson:[['entry','✍️ My Sheet']]
 };
 function startApp(u){
@@ -705,9 +704,14 @@ function go(id){
 const refOk=r=>r.ref!==undefined&&String(r.ref).trim()!==''&&String(r.ref).trim()!=='-';
 const sum=a=>a.reduce((s,r)=>s+num(r.value),0);
 const VSTAGES=['Opportunity','Quotation','Won','Loss'],sumV=a=>VSTAGES.reduce((t,st)=>t+sum(latestByRef(a,st)),0);   // Total value = Enquiries + Quotation + Won + Lost (Follow-up excluded)
-const uniqRefs=l=>new Set(l.filter(refOk).map(r=>String(r.ref)));
-function latestByRef(list,stage){const m=new Map();list.filter(r=>r.stage===stage&&refOk(r)).forEach(r=>m.set(String(r.ref),r));return [...m.values()]}
-function inView(r,f,usePerson=true){return (f.m==='All Months'||r.month===f.m)&&(f.d==='All Days'||String(r.day)===f.d)&&(!usePerson||f.p==='All Sales Persons'||r.person===f.p)}
+const keyOk=r=>refOk(r)||(r.stage==='Opportunity'&&String(r.client||'').trim()!=='');
+const keyOf=r=>{const k=String(r.ref??'').trim();return(r.stage==='Opportunity'&&k.length<3)?k+'|'+String(r.client||'').trim().toLowerCase()+'|'+r.person:k};   // enquiries entered with ref like "1" are separate enquiries per client
+const uniqRefs=l=>new Set(l.filter(keyOk).map(keyOf));
+const yearOf=r=>String(r.year||(r.date?String(r.date).slice(0,4):''));
+const YEARS=()=>{const a=new Set();for(let y=2025;y<=new Date().getFullYear()+3;y++)a.add(String(y));rows.forEach(r=>{const y=yearOf(r);if(y)a.add(y)});return[...a].sort()};
+function latestByRef(list,stage){if(stage==='Opportunity')return list.filter(r=>r.stage==='Opportunity');   // enquiries: every Opportunity entry is summed
+  const m=new Map();list.filter(r=>r.stage===stage&&(stage==='Opportunity'?keyOk(r):refOk(r))).forEach(r=>m.set(keyOf(r),r));return [...m.values()]}
+function inView(r,f,usePerson=true){return (!f.y||f.y==='All Years'||yearOf(r)===f.y)&&(f.m==='All Months'||r.month===f.m)&&(f.d==='All Days'||String(r.day)===f.d)&&(!usePerson||f.p==='All Sales Persons'||r.person===f.p)}
 const quotedSet=()=>new Set(rows.filter(r=>r.stage==='Quotation'&&refOk(r)).map(r=>String(r.ref)));
 function compute(f){
   const L=rows.filter(r=>inView(r,f)),quoted=quotedSet();
@@ -762,8 +766,8 @@ function hbars(el,items){
 /* =====================================================================
    DASHBOARD (admin + director)
    ===================================================================== */
-const filt=()=>({m:$('fM').value,d:$('fD').value,p:$('fP').value});
-const KICO=[[/total act/i,'🧮'],[/total value/i,'💰'],[/new cust/i,'🆕'],[/old cust/i,'🤝'],[/win/i,'🏆'],[/complaint/i,'⚠️'],[/opportunity/i,'🔎'],[/quotation/i,'📝'],[/won/i,'✅'],[/lost/i,'❌'],[/call/i,'📞'],[/email/i,'✉️'],[/whatsapp/i,'💬'],[/visit/i,'🚗'],[/total follow/i,'🔁'],[/followed up/i,'🔗'],[/avg/i,'📊'],[/still open/i,'⏳'],[/my entries/i,'🗂️']];
+const filt=()=>({y:$('fY').value||'All Years',m:$('fM').value,d:$('fD').value,p:$('fP').value});
+const KICO=[[/loss %/i,'📉'],[/total act/i,'🧮'],[/total value/i,'💰'],[/new cust/i,'🆕'],[/old cust/i,'🤝'],[/win/i,'🏆'],[/complaint/i,'⚠️'],[/opportunity/i,'🔎'],[/quotation/i,'📝'],[/won/i,'✅'],[/lost/i,'❌'],[/call/i,'📞'],[/email/i,'✉️'],[/whatsapp/i,'💬'],[/visit/i,'🚗'],[/total follow/i,'🔁'],[/followed up/i,'🔗'],[/avg/i,'📊'],[/still open/i,'⏳'],[/my entries/i,'🗂️']];
 const kico=l=>(KICO.find(k=>k[0].test(l))||[0,'📌'])[1];
 const kpi=(l,v,s,color)=>`<div class="card kpi"><div class="ico">${kico(l)}</div><div class="l">${l}</div><div class="v" ${color?`style="color:${color}"`:''}>${v}</div><div class="s">${s||''}</div></div>`;
 function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
@@ -782,11 +786,11 @@ function renderDash(){
   $('kpi1').innerHTML=
    kpi('Total activities',inr(L.length),`Formula: ${TYPES.map(t=>t+' '+L.filter(r=>(r.type||'')===t).length).join(' + ')}${L.some(r=>!TYPES.includes(r.type))?' + Other '+L.filter(r=>!TYPES.includes(r.type)).length:''} = ${L.length}`)+
    (()=>{const sv=s=>sum(latestByRef(L,s)),e=sv('Opportunity'),q=sv('Quotation'),w=sv('Won'),l=sv('Loss');
-     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Enquiries ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (latest value per order ref • Follow-up excluded)`)})()+
+     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Enquiries ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (Enquiries = all Opportunity entries; others latest per order ref • Follow-up excluded)`)})()+
    kpi('Win % (Won value ÷ Quotation value)',pct(C.win),`Formula: Won ${inr(C.wV)} ÷ Quotation ${inr(C.qV)}`,'var(--brand2)')+
-   kpi('Customer complaints',C.comp.total,`Short ${C.comp.short} • Wrong ${C.comp.wrong} • Quality ${C.comp.quality} • Late ${C.comp.late}`,C.comp.total?'var(--bad)':'');
+   kpi('Loss % (Lost value ÷ Quotation value)',pct(C.qV?C.lV/C.qV:0),`Formula: Lost ${inr(C.lV)} ÷ Quotation ${inr(C.qV)}`,'var(--bad)');
   $('kpi2').innerHTML=
-   kpi('Enquiries – opportunity (KSH)',inr(sum(C.opp)),`${C.opp.length} ${C.opp.length===1?'enquiry':'enquiries'} (order refs)`)+
+   kpi('Enquiries – opportunity (KSH)',inr(sum(C.opp)),`${C.opp.length} opportunity ${C.opp.length===1?'entry':'entries'} • all Opportunity-stage values summed`)+
    kpi('Quotations (KSH)',inr(C.qV),`${C.quotes.length} refs quoted • latest quote value`)+
    kpi('Won value (KSH)',inr(C.wV),`${C.won.length} orders won`,'var(--brand2)')+
    kpi('Lost value (KSH)',inr(C.lV),`${C.lost.length} orders lost`,'var(--bad)');
@@ -800,9 +804,9 @@ function renderDash(){
   $('kpiAct').innerHTML=acts.map(a=>kpi(a.n.toUpperCase()+(a.n==='WhatsApp'?'':'S'),a.c,`${L.length?pct(a.c/L.length):'0.0%'} of activities • ${inr(a.v)} KSH`)).join('');
   const fuTot=C.fuRows.length,fuRefs=C.fu.length,openRefs=C.fu.filter(o=>o.status==='Open').length;
   $('kpiFu').innerHTML=kpi('Total follow-ups',fuTot,`Value ${inr(sum(C.fuRows))} KSH • after quotation only`)+
-    kpi('Order refs followed up',fuRefs,'Unique Order Ref No. followed up after a quotation')+
-    kpi('Avg follow-ups per ref',fuRefs?+(fuTot/fuRefs).toFixed(1):0,`Highest on one ref: ${Math.max(0,...C.fu.map(o=>o.n))}`)+
-    kpi('Refs still open',openRefs,'Followed-up refs with no Won / Loss yet',openRefs?'var(--warn)':'');
+    kpi('Customer complaints',C.comp.total,`Short ${C.comp.short} • Wrong ${C.comp.wrong} • Quality ${C.comp.quality} • Late ${C.comp.late}`,C.comp.total?'var(--bad)':'')+
+    kpi('New customers',C.newC.refs,`${C.newC.acts} activities • counted once per Order Ref No.`)+
+    kpi('Old customers',C.oldC.refs,`${C.oldC.acts} activities • counted once per Order Ref No.`);
 
   const quoted=quotedSet();
   const Lall=rows.filter(r=>inView(r,f,false)),G={};VSTAGES.forEach(st=>G[st]=latestByRef(Lall,st));   // same one-latest-value-per-order-ref rows the KPI cards use
@@ -816,18 +820,18 @@ function renderDash(){
   T.tv=VSTAGES.reduce((t,st)=>t+sum(G[st]),0);T.wv=sum(G.Won);T.lv=sum(G.Loss);
   T.person='TOTAL';T._tot=1;T.wq=T.q?T.w/T.q:null;T.we=T.enq?T.w/T.enq:null;
   const pc=v=>v==null?'–':pct(v);
-  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Enquiries + Quotation + Won + Lost) — same as the KPI cards when All Sales Persons is selected.</div>';
+  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Enquiries + Quotation + Won + Lost; Enquiries = every Opportunity entry) — same as the KPI cards when All Sales Persons is selected.</div>';
 
   const totV=sumV(L),totA=L.length;
   const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:VSTAGES.includes(s)?sum(latestByRef(x,s)):sum(x)}});
   const stT={s:'TOTAL',a:st.reduce((t,r)=>t+r.a,0),r:uniqRefs(L).size,v:totV,_tot:1};
-  $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>(r._tot||VSTAGES.includes(r.s))?(totV?pct(r.v/totV):'0.0%'):'–'}],[...st,stT])+'<div class="note" style="margin-top:6px">Total value = Opportunity + Quotation + Won + Loss (latest value per order ref). Follow up and Customer complaint values are shown for information only and are not counted.</div>';
+  $('tStage').innerHTML=table([{h:'Type of Stage',k:'s'},{h:'Activities',n:1,k:'a'},{h:'Order Refs',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>(r._tot||VSTAGES.includes(r.s))?(totV?pct(r.v/totV):'0.0%'):'–'}],[...st,stT])+'<div class="note" style="margin-top:6px">Total value = Opportunity (all entries) + Quotation + Won + Loss (latest value per order ref). Follow up and Customer complaint values are shown for information only and are not counted.</div>';
   const GL=VSTAGES.flatMap(st=>latestByRef(L,st));
   const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sum(GL.filter(r=>r.cat===c))}});
   const ctT={c:'TOTAL',a:ct.reduce((t,r)=>t+r.a,0),r:uniqRefs(L.filter(r=>CATS.includes(r.cat))).size,v:ct.reduce((t,r)=>t+r.v,0),_tot:1};
   $('tCat').innerHTML=table([{h:'Category',k:'c'},{h:'Activities',n:1,k:'a'},{h:'Enquiries (refs)',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...ct,ctT]);
 
-  $('tFu').innerHTML=table([{h:'#',f:r=>r._i},{h:'Order Ref No.',k:'ref'},{h:'Client',k:'client'},{h:'Sales Person',k:'person'},{h:'Category',k:'cat'},{h:'No. of Follow-ups',n:1,k:'n'},{h:'First',f:r=>dmy(r.first)},{h:'Last',f:r=>dmy(r.last)},{h:'Value (KSH)',n:1,f:r=>inr(r.value)},{h:'Order Status',f:r=>pill(r.status==='Open'?'Follow Open':r.status)}],C.fu.slice(0,60).map((o,i)=>({...o,_i:i+1})));
+  $('tFu').innerHTML=table([{h:'#',f:r=>r._i},{h:'Order Ref No.',k:'ref'},{h:'Client',k:'client'},{h:'Sales Person',k:'person'},{h:'Category',k:'cat'},{h:'No. of Follow-ups',n:1,k:'n'},{h:'First',f:r=>dmy(r.first)},{h:'Last',f:r=>dmy(r.last)},{h:'Value (KSH)',n:1,f:r=>inr(r.value)},{h:'Order Status',f:r=>pill(r.status==='Open'?'Follow Open':r.status)}],C.fu.map((o,i)=>({...o,_i:i+1})));
 
   barChart($('chBar'),ps.map(p=>p.person),[{n:'Total value',v:ps.map(p=>p.tv)},{n:'Won value',v:ps.map(p=>p.wv)}]);
   donut($('chNew'),[{n:'New',v:C.newC.refs},{n:'Old',v:C.oldC.refs}],' enq');
@@ -838,22 +842,6 @@ function renderDash(){
 /* =====================================================================
    ORDER STATUS (admin + director)
    ===================================================================== */
-function renderStatus(){
-  if(!(isAdmin()||isDir()))return;
-  const quoted=quotedSet(),m=new Map();
-  rows.forEach(r=>{if(!refOk(r))return;const k=String(r.ref);
-    const o=m.get(k)||{ref:k,fu:0,enqV:0,qV:0,wonD:'',lossD:'',qD:''};
-    o.client=r.client||o.client;o.person=r.person;o.cat=r.cat||o.cat;
-    if(r.stage==='Opportunity')o.enqV=num(r.value);
-    if(r.stage==='Quotation'){o.qV=num(r.value);o.qD=r.date}
-    if(r.stage==='Won')o.wonD=r.date;if(r.stage==='Loss')o.lossD=r.date;
-    if(r.stage==='Follow up'&&quoted.has(k))o.fu++;
-    if(!o.last||r.date>=o.last){o.last=r.date;o.rem=r.remark||o.rem}
-    m.set(k,o)});
-  const list=[...m.values()].map(o=>({...o,live:o.wonD?'Won':o.lossD?'Loss':o.fu?'Under follow-up':o.qV?'Quoted – awaiting reply':'Enquiry – not quoted'})).sort((a,b)=>b.qV-a.qV);
-  $('osSummary').textContent=`Orders: ${list.length}  •  Won: ${list.filter(o=>o.wonD).length}  •  Lost: ${list.filter(o=>o.lossD).length}  •  Total quotation value: ${inr(list.reduce((s,o)=>s+o.qV,0))} KSH`;
-  $('tStatus').innerHTML=table([{h:'Rank',f:r=>r._i},{h:'Client',k:'client'},{h:'Order Ref No.',k:'ref'},{h:'Sales Person',k:'person'},{h:'Category',k:'cat'},{h:'Enquiry Value',n:1,f:r=>r.enqV?inr(r.enqV):''},{h:'Quotation Value',n:1,f:r=>r.qV?inr(r.qV):''},{h:'Quotation Date',f:r=>dmy(r.qD)},{h:'Won Date',f:r=>dmy(r.wonD)},{h:'Loss Date',f:r=>dmy(r.lossD)},{h:'Follow-ups',n:1,k:'fu'},{h:'Last Activity',f:r=>dmy(r.last)},{h:'Live Status',f:r=>pill(r.live)},{h:'Latest Remark',k:'rem'}],list.map((o,i)=>({...o,_i:i+1})));
-}
 
 /* =====================================================================
    ENTRY SHEETS (all roles; salesperson locked to own sheet)
@@ -861,7 +849,7 @@ function renderStatus(){
 function setupEntryForRole(){
   $('entryTitle').textContent=isSales()?`New entry – ${me.name}`:'New activity entry';
   $('sheetTitle').textContent=isSales()?'My entries':'Entry sheets – one sheet per sales person';
-  $('tPwrap').hidden=isSales();$('mySum').hidden=!isSales();$('salesSheet').hidden=!isSales();$('adminEntry').hidden=isSales();
+  $('tPwrap').hidden=isSales();$('myFilters').hidden=!isSales();$('mySum').hidden=!isSales();$('salesSheet').hidden=!isSales();$('adminEntry').hidden=isSales();
 }
 function refreshEntryLists(){
   const names=isSales()?[me.name]:salesNames();
@@ -869,12 +857,18 @@ function refreshEntryLists(){
   $('eP').disabled=isSales();
   $('noSales').hidden=names.length>0;$('f').querySelector('button[type=submit]').disabled=!names.length;
   const sel=$('tP').value;opt($('tP'),personList(),'All Sales Persons');if([...$('tP').options].some(o=>o.value===sel))$('tP').value=sel;
+  {const v=$('fY').value;opt($('fY'),YEARS(),'All Years');if([...$('fY').options].some(o=>o.value===v))$('fY').value=v}
+  fillMy();
   const fp=$('fP').value;opt($('fP'),personList(),'All Sales Persons');if([...$('fP').options].some(o=>o.value===fp))$('fP').value=fp;
   $('clientList').innerHTML=[...new Set(visibleRows().map(r=>r.client).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}">`).join('');
 }
+function fillMy(){if(!isSales())return;
+  const set=(id,list,all)=>{const e=$(id),v=e.value;opt(e,list,all);if([...e.options].some(o=>o.value===v))e.value=v};
+  set('myY',YEARS(),'All Years');set('myM',MONTHS,'All Months');set('myD',Array.from({length:31},(_,i)=>i+1),'All Days')}
+const myF=()=>({y:$('myY').value||'All Years',m:$('myM').value||'All Months',d:$('myD').value||'All Days',p:me.name});
 function renderMySum(){
   if(!isSales())return;
-  const C=compute({m:'All Months',d:'All Days',p:me.name});
+  const C=compute(myF());
   $('mySum').innerHTML=kpi('My entries',C.L.length,`${uniqRefs(C.L).size} order refs`)+kpi('My quotations (KSH)',inr(C.qV),`${C.quotes.length} refs quoted`)+kpi('My won value (KSH)',inr(C.wV),`${C.won.length} orders won`,'var(--brand2)')+kpi('My win %',pct(C.win),`${C.fuRows.length} follow-ups after quotation`);
 }
 function renderEntries(){
@@ -882,7 +876,7 @@ function renderEntries(){
   $('sheetHint').textContent=isSales()?'Only your own entries are shown here.':'Pick a sales person to open their sheet. New entries from salespeople appear here instantly.';
   const q=$('tSearch').value.toLowerCase(),p=isSales()?me.name:$('tP').value;
   const list=rows.map((r,i)=>({...r,_ix:i})).filter(r=>(isSales()?r.person===me.name:(p==='All Sales Persons'||r.person===p))&&(!q||JSON.stringify(r).toLowerCase().includes(q))).reverse();
-  $('tEntries').innerHTML=table([{h:'SR',f:r=>r._ix+1},{h:'Date',f:r=>dmy(r.date)},{h:'Month',k:'month'},{h:'Day',k:'day'},...(isSales()?[]:[{h:'Sales Person',k:'person'}]),{h:'Cat.',k:'cat'},{h:'Type',k:'type'},{h:'Client',k:'client'},{h:'Order Ref',k:'ref'},{h:'Contact',k:'contact'},{h:'Stage',f:r=>pill(r.stage)},{h:'Value (KSH)',n:1,f:r=>r.value===''||r.value==null?'':inr(num(r.value))},{h:'Remark',k:'remark'},{h:'Secondary remark',f:r=>`<span style="white-space:normal;display:inline-block;min-width:160px">${esc(r.remark2)}</span>`},{h:'Fu #',n:1,f:r=>r.fuNo||''},{h:'',f:r=>`<button class="btn del" data-del="${r._ix}">✕</button>`}],list);
+  $('tEntries').innerHTML=table([{h:'SR',f:r=>r._ix+1},{h:'Date',f:r=>dmy(r.date)},{h:'Year',f:r=>yearOf(r)},{h:'Month',k:'month'},{h:'Day',k:'day'},...(isSales()?[]:[{h:'Sales Person',k:'person'}]),{h:'Cat.',k:'cat'},{h:'Type',k:'type'},{h:'Client',k:'client'},{h:'Order Ref',k:'ref'},{h:'Contact',k:'contact'},{h:'Stage',f:r=>pill(r.stage)},{h:'Value (KSH)',n:1,f:r=>r.value===''||r.value==null?'':inr(num(r.value))},{h:'Remark',k:'remark'},{h:'Secondary remark',f:r=>`<span style="white-space:normal;display:inline-block;min-width:160px">${esc(r.remark2)}</span>`},{h:'Fu #',n:1,f:r=>r.fuNo||''},{h:'',f:r=>`<button class="btn del" data-del="${r._ix}">✕</button>`}],list);
 }
 function fillRemarks(){opt($('eRem'),['',...(REMARKS[$('eStage').value]||[])])}
 function initForm(){
@@ -914,14 +908,14 @@ $('tEntries').onclick=e=>{const b=e.target.closest('[data-del]');if(!b)return;co
   if(isSales()&&r.person!==me.name)return;
   if(confirm('Delete this entry?')){rows.splice(+b.dataset.del,1);saveRows();renderAll()}};
 ['tSearch','tP'].forEach(i=>$(i).oninput=renderEntries);
-['fM','fD','fP'].forEach(i=>$(i).onchange=renderDash);
+['fY','fM','fD','fP'].forEach(i=>$(i).onchange=renderDash);
 $('todayBtns').addEventListener('click',e=>{const b=e.target.closest('.sbtn');if(!b)return;const t=new Date();
-  $('fM').value=MONTHS[t.getMonth()];$('fD').value=String(t.getDate());$('fP').value=b.dataset.p;renderDash()});
+  $('fY').value=String(t.getFullYear());$('fM').value=MONTHS[t.getMonth()];$('fD').value=String(t.getDate());$('fP').value=b.dataset.p;renderDash()});
 $('bPdf').onclick=()=>{const t=new Date(),f=filt(),old=document.title;
-  $('printInfo').textContent=`Sales Dashboard Report • Generated ${dmy(todayISO())} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} • Month: ${f.m} • Day: ${f.d} • Sales person: ${f.p}`;
+  $('printInfo').textContent=`Sales Dashboard Report • Generated ${dmy(todayISO())} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} • Year: ${f.y} • Month: ${f.m} • Day: ${f.d} • Sales person: ${f.p}`;
   document.title='Sales-Dashboard-Report-'+todayISO();
   window.addEventListener('afterprint',()=>{document.title=old},{once:true});window.print()};
-$('fReset').onclick=()=>{$('fM').selectedIndex=0;$('fD').selectedIndex=0;$('fP').selectedIndex=0;renderDash()};
+$('fReset').onclick=()=>{$('fY').selectedIndex=0;$('fM').selectedIndex=0;$('fD').selectedIndex=0;$('fP').selectedIndex=0;renderDash()};
 
 /* ---------- CSV ---------- */
 const HEAD=['date','person','cat','type','client','ref','contact','stage','value','remark','remark2'];
@@ -985,11 +979,12 @@ $('bWipe').onclick=()=>{if(confirm('Delete ALL entries? Logins are kept.')){rows
    SALESPERSON EXCEL-STYLE SHEET  (titles on top, one entry per row)
    ===================================================================== */
 const RY={month:'October',year:2026};              // reporting year start (Master List settings)
-function dateFor(month,day){
+function dateFor(month,day,year){
   const mi=MONTHS.indexOf(month),d=parseInt(day,10);if(mi<0||!(d>=1&&d<=31))return '';
-  const y=RY.year+(mi<MONTHS.indexOf(RY.month)?1:0),dt=new Date(y,mi,d);if(dt.getMonth()!==mi)return '';
+  const yy=parseInt(year,10),y=yy>1999?yy:RY.year+(mi<MONTHS.indexOf(RY.month)?1:0),dt=new Date(y,mi,d);if(dt.getMonth()!==mi)return '';
   return `${y}-${String(mi+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
 const GCOLS=[
+ {k:'year',h:'Year',w:78,t:'sel',opts:YEARS},
  {k:'month',h:'Month',w:112,t:'sel',opts:()=>MONTHS},
  {k:'day',h:'Day',w:62,t:'day'},
  {k:'date',h:'Date (auto)',w:108,t:'auto'},
@@ -1004,11 +999,11 @@ const GCOLS=[
  {k:'remark',h:'Remark',w:250,t:'rem'},
  {k:'remark2',h:'Secondary Remark',w:280,t:'txt'},
  {k:'fuNo',h:'Follow-up No.',w:104,t:'auto'}];
-const nd={month:MONTHS[new Date().getMonth()],day:new Date().getDate(),cat:'',type:''};   // defaults carried to the next new row
+const nd={year:String(new Date().getFullYear()),month:MONTHS[new Date().getMonth()],day:new Date().getDate(),cat:'',type:''};   // defaults carried to the next new row
 const selHtml=(list,cur,blank,k)=>`<select data-k="${k}">${blank?'<option value=""></option>':''}${list.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')}${cur&&!list.includes(cur)?`<option selected>${esc(cur)}</option>`:''}</select>`;
 function remOpts(stage,cur){const l=REMARKS[stage]||[];return `<option value=""></option>${l.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')}${cur&&!l.includes(cur)?`<option selected>${esc(cur)}</option>`:''}`}
 function cellHtml(c,r){
-  const v=r[c.k]??'';
+  const v=c.k==='year'?yearOf(r):(r[c.k]??'');
   if(c.t==='auto')return `<td class="auto" data-k="${c.k}">${c.k==='date'?dmy(r.date):esc(c.k==='fuNo'?(r.fuNo||''):v)}</td>`;
   if(c.t==='sel')return `<td>${selHtml(c.opts(),v,c.blank,c.k)}</td>`;
   if(c.t==='rem')return `<td><select data-k="remark">${remOpts(r.stage,v)}</select></td>`;
@@ -1018,10 +1013,10 @@ function cellHtml(c,r){
 }
 function renderGrid(){
   if(!isSales())return;
-  const mine=[];rows.forEach((r,i)=>{if(r.person===me.name)mine.push([r,i])});
-  const draft={month:nd.month,day:nd.day,date:dateFor(nd.month,nd.day),person:me.name,cat:nd.cat,type:nd.type,stage:'',remark:''};
+  const mine=[],F=myF();let tot=0;rows.forEach((r,i)=>{if(r.person===me.name){tot++;if(inView(r,F,false))mine.push([r,i])}});
+  const draft={year:nd.year,month:nd.month,day:nd.day,date:dateFor(nd.month,nd.day,nd.year),person:me.name,cat:nd.cat,type:nd.type,stage:'',remark:''};
   $('xlTitle').textContent='📋 '+me.name+' – Sales Activity Sheet';
-  $('xlCnt').textContent=mine.length+(mine.length===1?' entry':' entries');
+  $('xlCnt').textContent=(mine.length===tot?mine.length:mine.length+' of '+tot)+(tot===1?' entry':' entries');
   const head=`<colgroup><col style="width:50px">${GCOLS.map(c=>`<col style="width:${c.w}px">`).join('')}<col style="width:84px"></colgroup>
    <thead><tr><th class="rn">SR</th>${GCOLS.map(c=>`<th>${c.h}</th>`).join('')}<th style="text-align:center">Action</th></tr></thead>`;
   const body=mine.map(([r,ix],n)=>`<tr data-ix="${ix}"><td class="rn">${n+1}</td>${GCOLS.map(c=>cellHtml(c,r)).join('')}<td class="act"><button class="btn del" data-del="${ix}" title="Delete row">✕</button></td></tr>`).join('')+
@@ -1043,14 +1038,14 @@ function validateRow(r,self){
   return null;
 }
 const valOf=el=>el.type==='number'?(el.value===''?'':num(el.value)):el.value.trim();
-function readRow(tr){const r={person:me.name};tr.querySelectorAll('[data-k]').forEach(el=>{if(el.tagName==='TD')return;r[el.dataset.k]=valOf(el)});r.day=parseInt(r.day,10)||'';r.date=dateFor(r.month,r.day);return r}
+function readRow(tr){const r={person:me.name};tr.querySelectorAll('[data-k]').forEach(el=>{if(el.tagName==='TD')return;r[el.dataset.k]=valOf(el)});r.day=parseInt(r.day,10)||'';r.year=parseInt(r.year,10)||'';r.date=dateFor(r.month,r.day,r.year);return r}
 function markBad(tr,key){tr.querySelectorAll('td.bad').forEach(t=>t.classList.remove('bad'));const el=tr.querySelector(`[data-k="${key}"]`);if(el){el.closest('td').classList.add('bad');el.focus()}}
 function saveNew(){
   const tr=$('xlBody').querySelector('tr.newrow'),r=readRow(tr);r.by=me.username;
   const bad=validateRow(r,null);if(bad){toast('⚠ '+bad.msg);return markBad(tr,bad.key)}
   const note=r.stage==='Follow up'&&!rows.some(x=>String(x.ref)===String(r.ref)&&x.stage==='Quotation');
   rows.push(r);recomputeFu();saveRows();
-  nd.month=r.month;nd.day=r.day;nd.cat=r.cat;nd.type=r.type;
+  nd.year=String(r.year||nd.year);nd.month=r.month;nd.day=r.day;nd.cat=r.cat;nd.type=r.type;
   renderAll();toast(note?'Saved ✔ (follow-ups count on the dashboard only after a quotation exists for this ref)':'Row added ✔ dashboard updated');
   const f=$('xlBody').querySelector('tr.newrow [data-k="client"]');f&&f.focus();
 }
@@ -1064,7 +1059,7 @@ function onGridChange(e){
     return}
   const ix=+tr.dataset.ix,old=rows[ix],cand={...old};
   cand[k]=valOf(el);
-  if(k==='month'||k==='day'){if(k==='day')cand.day=parseInt(cand.day,10)||'';cand.date=dateFor(cand.month,cand.day)}
+  if(k==='month'||k==='day'||k==='year'){if(k==='day')cand.day=parseInt(cand.day,10)||'';if(k==='year')cand.year=parseInt(cand.year,10)||'';cand.date=dateFor(cand.month,cand.day,k==='year'?cand.year:yearOf(old))}
   if(k==='stage'){cand.remark=''}
   const wasOk=!validateRow(old,old),bad=validateRow(cand,old);
   if(bad&&wasOk){toast('⚠ '+bad.msg+' – change not saved');el.value=old[k]??'';return}   // keep complete rows complete
@@ -1086,6 +1081,8 @@ $('xlGrid').addEventListener('keydown',e=>{
     const nx=e.key==='ArrowDown'?tr.nextElementSibling:tr.previousElementSibling,t=nx&&nx.querySelector(`[data-k="${k}"]`);
     if(t&&t.tagName!=='TD'){e.preventDefault();t.focus();t.select&&t.select()}}});
 $('bCsv2').onclick=()=>$('bCsv').click();
+['myY','myM','myD'].forEach(i=>$(i).onchange=()=>{renderMySum();renderGrid()});
+$('myReset').onclick=()=>{['myY','myM','myD'].forEach(i=>$(i).selectedIndex=0);renderMySum();renderGrid()};
 
 const CF={};
 function cfTable(el){return el.tagName==='TABLE'?el:el.querySelector('table')}
@@ -1110,7 +1107,7 @@ function cfKeep(fn,el,key){const a=document.activeElement,k=a&&a.classList&&a.cl
 const _rE=renderEntries,_rG=renderGrid;
 renderEntries=function(){cfKeep(_rE,$('tEntries'),'tEntries')};
 renderGrid=function(){cfKeep(_rG,$('xlGrid'),'xlGrid')};
-function renderAll(){if(!me)return;refreshEntryLists();renderDash();renderStatus();renderEntries();renderGrid();renderMySum();renderUsers()}
+function renderAll(){if(!me)return;refreshEntryLists();renderDash();renderEntries();renderGrid();renderMySum();renderUsers()}
 /* cross-tab refresh is now handled by the cloud sync above */
 $('dlgPw').addEventListener('click',e=>{if(e.target===$('dlgPw'))$('dlgPw').close()});
 initForm();
