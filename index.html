@@ -240,17 +240,17 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
     <div style="flex:1"></div>
     <div style="text-align:right"><span class="live">Live</span><div class="note" id="status" style="margin-top:4px"></div></div>
   </div>
-  <div class="card" id="todayBox"><b>📌 Today's data entry status</b> <span class="note" id="todayDate"></span><div class="tbtns" id="todayBtns"></div></div>
+  <div class="card" id="todayBox"><b>📌 Today's data entry status</b> <span class="note" id="todayDate" style="font-weight:700;color:var(--ink,#1a2340)"></span><div class="tbtns" id="todayBtns"></div></div>
   <div class="note">Order counts, win rates and follow-ups are counted per unique Order Ref No.; activities are counted per row.</div>
 
   <h2>Key KPIs <small>— month, day &amp; sales person filters apply</small></h2>
   <div class="grid g4" id="kpi1"></div>
   <div class="grid g4" id="kpi2" style="margin-top:12px"></div>
 
-  <h2>Top 5 quotations &amp; enquiries</h2>
+  <h2>Top 5 quotations &amp; opportunities</h2>
   <div class="grid g2">
     <div class="card"><b>Top 5 quotations</b> <span class="note">latest quote per order ref</span><div class="tw" id="topQ"></div></div>
-    <div class="card"><b>Top 5 enquiries</b> <span class="note">Opportunity stage</span><div class="tw" id="topE"></div></div>
+    <div class="card"><b>Top 5 opportunities</b> <span class="note">Opportunity stage</span><div class="tw" id="topE"></div></div>
   </div>
 
   <h2>Activity type <small>— count, share of activities and value</small></h2>
@@ -274,7 +274,7 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
   <h2>Charts</h2>
   <div class="charts">
     <div class="card"><h3>Value by sales person (KSH)</h3><div id="chBar"></div></div>
-    <div class="card"><h3>New vs old customer enquiries</h3><div id="chNew"></div></div>
+    <div class="card"><h3>New vs old customer opportunities</h3><div id="chNew"></div></div>
     <div class="card"><h3>Activity type mix</h3><div id="chAct"></div></div>
     <div class="card"><h3>Stage-wise value (KSH)</h3><div id="chStage"></div></div>
   </div>
@@ -767,7 +767,7 @@ function hbars(el,items){
    DASHBOARD (admin + director)
    ===================================================================== */
 const filt=()=>({y:$('fY').value||'All Years',m:$('fM').value,d:$('fD').value,p:$('fP').value});
-const KICO=[[/loss %/i,'📉'],[/total act/i,'🧮'],[/total value/i,'💰'],[/new cust/i,'🆕'],[/old cust/i,'🤝'],[/win/i,'🏆'],[/complaint/i,'⚠️'],[/opportunity/i,'🔎'],[/quotation/i,'📝'],[/won/i,'✅'],[/lost/i,'❌'],[/call/i,'📞'],[/email/i,'✉️'],[/whatsapp/i,'💬'],[/visit/i,'🚗'],[/total follow/i,'🔁'],[/followed up/i,'🔗'],[/avg/i,'📊'],[/still open/i,'⏳'],[/my entries/i,'🗂️']];
+const KICO=[[/loss %/i,'📉'],[/total act/i,'🧮'],[/total value/i,'💰'],[/new cust/i,'🆕'],[/old cust/i,'🤝'],[/win/i,'🏆'],[/complaint/i,'⚠️'],[/opportunit/i,'🔎'],[/quotation/i,'📝'],[/won/i,'✅'],[/lost/i,'❌'],[/call/i,'📞'],[/email/i,'✉️'],[/whatsapp/i,'💬'],[/visit/i,'🚗'],[/total follow/i,'🔁'],[/followed up/i,'🔗'],[/avg/i,'📊'],[/still open/i,'⏳'],[/my entries/i,'🗂️']];
 const kico=l=>(KICO.find(k=>k[0].test(l))||[0,'📌'])[1];
 const kpi=(l,v,s,color)=>`<div class="card kpi"><div class="ico">${kico(l)}</div><div class="l">${l}</div><div class="v" ${color?`style="color:${color}"`:''}>${v}</div><div class="s">${s||''}</div></div>`;
 function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
@@ -786,11 +786,11 @@ function renderDash(){
   $('kpi1').innerHTML=
    kpi('Total activities',inr(L.length),`Formula: ${TYPES.map(t=>t+' '+L.filter(r=>(r.type||'')===t).length).join(' + ')}${L.some(r=>!TYPES.includes(r.type))?' + Other '+L.filter(r=>!TYPES.includes(r.type)).length:''} = ${L.length}`)+
    (()=>{const sv=s=>sum(latestByRef(L,s)),e=sv('Opportunity'),q=sv('Quotation'),w=sv('Won'),l=sv('Loss');
-     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Enquiries ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (Enquiries = all Opportunity entries; others latest per order ref • Follow-up excluded)`)})()+
+     return kpi('Total value (KSH)',inr(e+q+w+l),`Formula: Opportunities ${inr(e)} + Quotation ${inr(q)} + Won ${inr(w)} + Lost ${inr(l)} (Opportunities = all Opportunity entries; others latest per order ref • Follow-up excluded)`)})()+
    kpi('Win % (Won value ÷ Quotation value)',pct(C.win),`Formula: Won ${inr(C.wV)} ÷ Quotation ${inr(C.qV)}`,'var(--brand2)')+
    kpi('Loss % (Lost value ÷ Quotation value)',pct(C.qV?C.lV/C.qV:0),`Formula: Lost ${inr(C.lV)} ÷ Quotation ${inr(C.qV)}`,'var(--bad)');
   $('kpi2').innerHTML=
-   kpi('Enquiries – opportunity (KSH)',inr(sum(C.opp)),`${C.opp.length} opportunity ${C.opp.length===1?'entry':'entries'} • all Opportunity-stage values summed`)+
+   kpi('Opportunities (KSH)',inr(sum(C.opp)),`${C.opp.length} opportunity ${C.opp.length===1?'entry':'entries'} • all Opportunity-stage values summed`)+
    kpi('Quotations (KSH)',inr(C.qV),`${C.quotes.length} refs quoted • latest quote value`)+
    kpi('Won value (KSH)',inr(C.wV),`${C.won.length} orders won`,'var(--brand2)')+
    kpi('Lost value (KSH)',inr(C.lV),`${C.lost.length} orders lost`,'var(--bad)');
@@ -820,7 +820,7 @@ function renderDash(){
   T.tv=VSTAGES.reduce((t,st)=>t+sum(G[st]),0);T.wv=sum(G.Won);T.lv=sum(G.Loss);
   T.person='TOTAL';T._tot=1;T.wq=T.q?T.w/T.q:null;T.we=T.enq?T.w/T.enq:null;
   const pc=v=>v==null?'–':pct(v);
-  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Enquiries',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Enquiries + Quotation + Won + Lost; Enquiries = every Opportunity entry) — same as the KPI cards when All Sales Persons is selected.</div>';
+  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Opportunities',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Opportunities + Quotation + Won + Lost; Opportunities = every Opportunity entry) — same as the KPI cards when All Sales Persons is selected.</div>';
 
   const totV=sumV(L),totA=L.length;
   const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:VSTAGES.includes(s)?sum(latestByRef(x,s)):sum(x)}});
@@ -829,7 +829,7 @@ function renderDash(){
   const GL=VSTAGES.flatMap(st=>latestByRef(L,st));
   const ct=CATS.map(c=>{const x=L.filter(r=>r.cat===c);return{c,a:x.length,r:uniqRefs(x).size,v:sum(GL.filter(r=>r.cat===c))}});
   const ctT={c:'TOTAL',a:ct.reduce((t,r)=>t+r.a,0),r:uniqRefs(L.filter(r=>CATS.includes(r.cat))).size,v:ct.reduce((t,r)=>t+r.v,0),_tot:1};
-  $('tCat').innerHTML=table([{h:'Category',k:'c'},{h:'Activities',n:1,k:'a'},{h:'Enquiries (refs)',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...ct,ctT]);
+  $('tCat').innerHTML=table([{h:'Category',k:'c'},{h:'Activities',n:1,k:'a'},{h:'Opportunities (refs)',n:1,k:'r'},{h:'% Activities',n:1,f:r=>totA?pct(r.a/totA):'0.0%'},{h:'Value (KSH)',n:1,f:r=>inr(r.v)},{h:'% Value',n:1,f:r=>totV?pct(r.v/totV):'0.0%'}],[...ct,ctT]);
 
   $('tFu').innerHTML=table([{h:'#',f:r=>r._i},{h:'Order Ref No.',k:'ref'},{h:'Client',k:'client'},{h:'Sales Person',k:'person'},{h:'Category',k:'cat'},{h:'No. of Follow-ups',n:1,k:'n'},{h:'First',f:r=>dmy(r.first)},{h:'Last',f:r=>dmy(r.last)},{h:'Value (KSH)',n:1,f:r=>inr(r.value)},{h:'Order Status',f:r=>pill(r.status==='Open'?'Follow Open':r.status)}],C.fu.map((o,i)=>({...o,_i:i+1})));
 
