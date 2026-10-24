@@ -803,7 +803,7 @@ function renderDash(){
   const acts=TYPES.map(t=>{const x=L.filter(r=>(r.type||'')===t);return{n:t,c:x.length,v:sum(x)}});
   $('kpiAct').innerHTML=acts.map(a=>kpi(a.n.toUpperCase()+(a.n==='WhatsApp'?'':'S'),a.c,`${L.length?pct(a.c/L.length):'0.0%'} of activities • ${inr(a.v)} KSH`)).join('');
   const fuTot=C.fuRows.length,fuRefs=C.fu.length,openRefs=C.fu.filter(o=>o.status==='Open').length;
-  $('kpiFu').innerHTML=kpi('Total follow-ups',fuTot,`Value ${inr(sum(C.fuRows))} KSH • after quotation only`)+
+  $('kpiFu').innerHTML=kpi('Total follow-ups',fuTot,'')+
     kpi('Customer complaints',C.comp.total,`Short ${C.comp.short} • Wrong ${C.comp.wrong} • Quality ${C.comp.quality} • Late ${C.comp.late}`,C.comp.total?'var(--bad)':'')+
     kpi('New customers',C.newC.refs,`${C.newC.acts} activities • counted once per Order Ref No.`)+
     kpi('Old customers',C.oldC.refs,`${C.oldC.acts} activities • counted once per Order Ref No.`);
