@@ -956,7 +956,7 @@ $('tUsers').onclick=e=>{
   const admins=users.filter(x=>x.role==='admin'&&x.active).length;
   if(b.dataset.u==='pw')return openPw(u);
   if(b.dataset.u==='rename'){const n=(prompt('New display name',u.name)||'').trim();if(!n||n===u.name)return;
-    if(u.role==='salesperson'){if(users.some(x=>x.role==='salesperson'&&x!==u&&x.name.toLowerCase()===n.toLowerCase()))return toast('Name already used');rows.forEach(r=>{if(r.person===u.name)r.person=n});saveRows()}
+    if(u.role==='salesperson'){if(users.some(x=>x.role==='salesperson'&&x!==u&&x.name.toLowerCase()===n.toLowerCase()))return toast('Name already used');rows.forEach(r=>{if(String(r.person||'').trim().toLowerCase()===u.name.trim().toLowerCase())r.person=n});saveRows()}
     u.name=n;saveUsers();return renderAll()}
   if(b.dataset.u==='toggle'){if(u.active&&u.role==='admin'&&admins<2)return toast('Keep at least one active admin');u.active=!u.active;saveUsers();return renderAll()}
   if(b.dataset.u==='del'){if(u.role==='admin'&&admins<2)return toast('Cannot delete the last admin');
@@ -1038,7 +1038,7 @@ function validateRow(r,self){
   return null;
 }
 const valOf=el=>el.type==='number'?(el.value===''?'':num(el.value)):el.value.trim();
-function readRow(tr){const r={person:me.name};tr.querySelectorAll('[data-k]').forEach(el=>{if(el.tagName==='TD')return;r[el.dataset.k]=valOf(el)});r.day=parseInt(r.day,10)||'';r.year=parseInt(r.year,10)||'';r.date=dateFor(r.month,r.day,r.year);return r}
+function readRow(tr){const r={person:(users.find(x=>x.id===me.id)||me).name};tr.querySelectorAll('[data-k]').forEach(el=>{if(el.tagName==='TD')return;r[el.dataset.k]=valOf(el)});r.day=parseInt(r.day,10)||'';r.year=parseInt(r.year,10)||'';r.date=dateFor(r.month,r.day,r.year);return r}
 function markBad(tr,key){tr.querySelectorAll('td.bad').forEach(t=>t.classList.remove('bad'));const el=tr.querySelector(`[data-k="${key}"]`);if(el){el.closest('td').classList.add('bad');el.focus()}}
 function saveNew(){
   const tr=$('xlBody').querySelector('tr.newrow'),r=readRow(tr);r.by=me.username;
@@ -1107,7 +1107,15 @@ function cfKeep(fn,el,key){const a=document.activeElement,k=a&&a.classList&&a.cl
 const _rE=renderEntries,_rG=renderGrid;
 renderEntries=function(){cfKeep(_rE,$('tEntries'),'tEntries')};
 renderGrid=function(){cfKeep(_rG,$('xlGrid'),'xlGrid')};
-function renderAll(){if(!me)return;refreshEntryLists();renderDash();renderEntries();renderGrid();renderMySum();renderUsers()}
+function healNames(){
+  if(!me||!(isAdmin()||isSales()))return;
+  const by=new Map(users.filter(u=>u.role==='salesperson').map(u=>[u.name.trim().toLowerCase(),u.name]));let n=0;
+  rows.forEach(r=>{if(!r.person)return;const t=by.get(String(r.person).trim().toLowerCase());
+    if(t&&t!==r.person&&(isAdmin()||t===me.name)){r.person=t;n++}});
+  if(n){saveRows();if(isAdmin())toast('Fixed '+n+(n===1?' entry':' entries')+' saved under an old spelling of a name')}}
+function renderAll(){
+  if(me){const m2=users.find(x=>x.id===me.id);if(m2)me=m2}   // always use the latest saved name
+  healNames();if(!me)return;refreshEntryLists();renderDash();renderEntries();renderGrid();renderMySum();renderUsers()}
 /* cross-tab refresh is now handled by the cloud sync above */
 $('dlgPw').addEventListener('click',e=>{if(e.target===$('dlgPw'))$('dlgPw').close()});
 initForm();
