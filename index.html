@@ -240,7 +240,7 @@ tr.cfr th{position:sticky;background:#eef2ff!important;padding:3px 4px!important
     <div style="flex:1"></div>
     <div style="text-align:right"><span class="live">Live</span><div class="note" id="status" style="margin-top:4px"></div></div>
   </div>
-  <div class="card" id="todayBox"><b>📌 Today's data entry status</b> <span class="note" id="todayDate" style="font-weight:700;color:var(--ink,#1a2340)"></span><div class="tbtns" id="todayBtns"></div></div>
+  <div class="card" id="todayBox"><b>📌 Yesterday's data entry status</b> <span class="note" id="todayDate" style="font-weight:700;color:var(--ink,#1a2340)"></span><div class="tbtns" id="todayBtns"></div></div>
   <div class="note">Order counts, win rates and follow-ups are counted per unique Order Ref No.; activities are counted per row.</div>
 
   <h2>Key KPIs <small>— month, day &amp; sales person filters apply</small></h2>
@@ -771,12 +771,14 @@ const KICO=[[/loss %/i,'📉'],[/total act/i,'🧮'],[/total value/i,'💰'],[/n
 const kico=l=>(KICO.find(k=>k[0].test(l))||[0,'📌'])[1];
 const kpi=(l,v,s,color)=>`<div class="card kpi"><div class="ico">${kico(l)}</div><div class="l">${l}</div><div class="v" ${color?`style="color:${color}"`:''}>${v}</div><div class="s">${s||''}</div></div>`;
 function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
+const prevDay=()=>{const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate()-1)};
+const prevISO=()=>{const t=prevDay();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')};
 function renderToday(){
-  const iso=todayISO(),sp=users.filter(u=>u.role==='salesperson'&&u.active);
+  const iso=prevISO(),sp=users.filter(u=>u.role==='salesperson'&&u.active);
   const done=sp.filter(u=>rows.some(r=>r.person===u.name&&r.date===iso)).length;
-  $('todayDate').textContent=`${dmy(iso)} • ${done} of ${sp.length} filled today • click a name to filter the dashboard to that person for today`;
+  $('todayDate').textContent=`${dmy(iso)} • ${done} of ${sp.length} filled yesterday • click a name to filter the dashboard to that person for yesterday`;
   $('todayBtns').innerHTML=sp.length?sp.map(u=>{const n=rows.filter(r=>r.person===u.name&&r.date===iso).length;
-    return `<button type="button" class="sbtn ${n?'ok':'no'}" data-p="${esc(u.name)}">${esc(u.name)}<small>${n?'✔ '+n+(n===1?' entry':' entries')+' today':'✖ Not filled today'}</small></button>`}).join(''):'<span class="note">No active sales persons yet.</span>';
+    return `<button type="button" class="sbtn ${n?'ok':'no'}" data-p="${esc(u.name)}">${esc(u.name)}<small>${n?'✔ '+n+(n===1?' entry':' entries')+' yesterday':'✖ Not filled yesterday'}</small></button>`}).join(''):'<span class="note">No active sales persons yet.</span>';
 }
 function renderDash(){
   if(!(isAdmin()||isDir()))return;
@@ -820,7 +822,7 @@ function renderDash(){
   T.tv=VSTAGES.reduce((t,st)=>t+sum(G[st]),0);T.wv=sum(G.Won);T.lv=sum(G.Loss);T.ov=sum(G.Opportunity);T.qv=sum(G.Quotation);
   T.person='TOTAL';T._tot=1;T.wq=T.q?T.w/T.q:null;T.we=T.enq?T.w/T.enq:null;
   const pc=v=>v==null?'–':pct(v);
-  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Activities',n:1,k:'acts'},{h:'Opportunities',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Opportunity Value (KSH)',n:1,f:r=>inr(r.ov)},{h:'Quotation Value (KSH)',n:1,f:r=>inr(r.qv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Opportunities + Quotation + Won + Lost; Opportunities = every Opportunity entry) — same as the KPI cards when All Sales Persons is selected.</div>';
+  $('tPerson').innerHTML=table([{h:'Sales Person',k:'person'},{h:'Total Value (KSH)',n:1,f:r=>inr(r.tv)},{h:'Opportunity Value (KSH)',n:1,f:r=>inr(r.ov)},{h:'Quotation Value (KSH)',n:1,f:r=>inr(r.qv)},{h:'Won Value (KSH)',n:1,f:r=>inr(r.wv)},{h:'Lost Value (KSH)',n:1,f:r=>inr(r.lv)},{h:'Activities',n:1,k:'acts'},{h:'Opportunities',n:1,k:'enq'},{h:'Quoted',n:1,k:'q'},{h:'Won',n:1,k:'w'},{h:'Lost',n:1,k:'l'},{h:'Follow-ups',n:1,k:'fu'},{h:'New Cust.',n:1,k:'nw'},{h:'Old Cust.',n:1,k:'od'}],ps.length?[...ps,T]:[],{hl:r=>f.p===r.person})+'<div class="note" style="margin-top:6px">Total / Won / Lost Value = latest value per Order Ref No. (Total = Opportunities + Quotation + Won + Lost; Opportunities = every Opportunity entry) — same as the KPI cards when All Sales Persons is selected.</div>';
 
   const totV=sumV(L),totA=L.length;
   const st=STAGES.map(s=>{const x=L.filter(r=>r.stage===s);return{s,a:x.length,r:uniqRefs(x).size,v:VSTAGES.includes(s)?sum(latestByRef(x,s)):sum(x)}});
@@ -909,7 +911,7 @@ $('tEntries').onclick=e=>{const b=e.target.closest('[data-del]');if(!b)return;co
   if(confirm('Delete this entry?')){rows.splice(+b.dataset.del,1);saveRows();renderAll()}};
 ['tSearch','tP'].forEach(i=>$(i).oninput=renderEntries);
 ['fY','fM','fD','fP'].forEach(i=>$(i).onchange=renderDash);
-$('todayBtns').addEventListener('click',e=>{const b=e.target.closest('.sbtn');if(!b)return;const t=new Date();
+$('todayBtns').addEventListener('click',e=>{const b=e.target.closest('.sbtn');if(!b)return;const t=prevDay();
   $('fY').value=String(t.getFullYear());$('fM').value=MONTHS[t.getMonth()];$('fD').value=String(t.getDate());$('fP').value=b.dataset.p;renderDash()});
 $('bPdf').onclick=()=>{const t=new Date(),f=filt(),old=document.title;
   $('printInfo').textContent=`Sales Dashboard Report • Generated ${dmy(todayISO())} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} • Year: ${f.y} • Month: ${f.m} • Day: ${f.d} • Sales person: ${f.p}`;
